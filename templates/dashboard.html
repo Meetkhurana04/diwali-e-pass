@@ -1,0 +1,79 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard - Diwali E-Pass System{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="header">
+        <h1> Diwali E-Pass Dashboard</h1>
+        <div class="user-info">
+            <span class="username">{{ username }}</span>
+            <a href="{{ url_for('logout') }}" class="btn btn-secondary">Logout</a>
+        </div>
+    </div>
+    
+    <div class="nav-buttons">
+        <a href="{{ url_for('generate') }}" class="btn btn-success">➕ Generate New Pass</a>
+        <a href="{{ url_for('scanner') }}" class="btn ">📷 Open QR Scanner</a>
+        <a href="{{ url_for('database') }}" class="btn">🗄️ View Database</a>
+    </div>
+    
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 20px; margin-bottom: 30px;">
+        <div class="card" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white;">
+            <h3 style="font-size: 18px; margin-bottom: 10px; opacity: 0.9;">Total Passes</h3>
+            <div style="font-size: 48px; font-weight: bold;">{{ stats.total_passes }}</div>
+        </div>
+        
+        <div class="card" style="background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%); color: white;">
+            <h3 style="font-size: 18px; margin-bottom: 10px; opacity: 0.9;">Single Passes</h3>
+            <div style="font-size: 48px; font-weight: bold;">{{ stats.single_count }}</div>
+        </div>
+        
+        <div class="card" style="background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%); color: white;">
+            <h3 style="font-size: 18px; margin-bottom: 10px; opacity: 0.9;">Couple Passes</h3>
+            <div style="font-size: 48px; font-weight: bold;">{{ stats.couple_count }}</div>
+        </div>
+        
+        <div class="card" style="background: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%); color: white;">
+            <h3 style="font-size: 18px; margin-bottom: 10px; opacity: 0.9;">Scanned</h3>
+            <div style="font-size: 48px; font-weight: bold;">{{ stats.scanned_count }}</div>
+        </div>
+    </div>
+    
+    <div class="card">
+        <h2 style="margin-bottom: 20px; color: #333;">💰 Revenue Summary</h2>
+        
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 20px;">
+            <div style="padding: 20px; background: #f8f9fa; border-radius: 8px;">
+                <div style="font-size: 14px; color: #666; margin-bottom: 5px;">Cash Payments</div>
+                <div style="font-size: 32px; font-weight: bold; color: #28a745;">₹{{ "{:,}".format(stats.cash_total) }}</div>
+            </div>
+            
+            <div style="padding: 20px; background: #f8f9fa; border-radius: 8px;">
+                <div style="font-size: 14px; color: #666; margin-bottom: 5px;">Online Payments</div>
+                <div style="font-size: 32px; font-weight: bold; color: #007bff;">₹{{ "{:,}".format(stats.online_total) }}</div>
+            </div>
+            
+            <div style="padding: 20px; background: linear-gradient(135deg, #ffd89b 0%, #19547b 100%); border-radius: 8px; color: white;">
+                <div style="font-size: 14px; opacity: 0.9; margin-bottom: 5px;">Total Revenue</div>
+                <div style="font-size: 32px; font-weight: bold;">₹{{ "{:,}".format(stats.total_revenue) }}</div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="card">
+        <h2 style="margin-bottom: 15px; color: #333;">📊 Quick Stats</h2>
+        <ul style="list-style: none; padding: 0;">
+            <li style="padding: 10px 0; border-bottom: 1px solid #e0e0e0;">
+                <strong>Unscanned Passes:</strong> {{ stats.unscanned_count }}
+            </li>
+            <li style="padding: 10px 0; border-bottom: 1px solid #e0e0e0;">
+                <strong>Average Revenue per Pass:</strong> ₹{{ "%.2f"|format(stats.total_revenue / stats.total_passes if stats.total_passes > 0 else 0) }}
+            </li>
+            <li style="padding: 10px 0;">
+                <strong>Scan Rate:</strong> {{ "%.1f"|format(stats.scanned_count * 100 / stats.total_passes if stats.total_passes > 0 else 0) }}%
+            </li>
+        </ul>
+    </div>
+</div>
+{% endblock %}

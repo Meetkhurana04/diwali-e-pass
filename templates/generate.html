@@ -1,0 +1,237 @@
+{% extends "base.html" %}
+
+{% block title %}Generate Pass - Diwali E-Pass System{% endblock %}
+
+{% block styles %}
+<style>
+    .price-display {
+        background: linear-gradient(135deg, #ffd89b 0%, #19547b 100%);
+        color: white;
+        padding: 20px;
+        border-radius: 8px;
+        text-align: center;
+        margin-bottom: 30px;
+    }
+    
+    .price-display .amount {
+        font-size: 48px;
+        font-weight: bold;
+        margin: 10px 0;
+    }
+    
+    .couple-fields {
+        display: none;
+        background: #f8f9fa;
+        padding: 20px;
+        border-radius: 8px;
+        margin-top: 20px;
+    }
+    
+    .couple-fields.active {
+        display: block;
+    }
+    
+    .online-fields {
+        display: none;
+        background: #f8f9fa;
+        padding: 20px;
+        border-radius: 8px;
+        margin-top: 20px;
+    }
+    
+    .online-fields.active {
+        display: block;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="header">
+        <h1>➕ Generate New Pass</h1>
+        <div class="user-info">
+            <a href="{{ url_for('dashboard') }}" class="btn btn-secondary">← Back to Dashboard</a>
+        </div>
+    </div>
+    
+    {% if errors %}
+    <div class="alert alert-error">
+        <strong>Please fix the following errors:</strong>
+        <ul style="margin: 10px 0 0 20px;">
+            {% for error in errors %}
+            <li>{{ error }}</li>
+            {% endfor %}
+        </ul>
+    </div>
+    {% endif %}
+    
+    <div class="card">
+        <div class="price-display">
+            <div style="font-size: 18px; opacity: 0.9;">Pass Amount</div>
+            <div class="amount" id="price-amount">₹499</div>
+            <div style="font-size: 14px; opacity: 0.8;" id="price-type">SINGLE</div>
+        </div>
+        
+        <form method="POST" id="pass-form">
+            <h3 style="margin-bottom: 20px; color: #667eea;">Primary Details</h3>
+            
+            <div class="form-group">
+                <label for="pass_type">Pass Type <span class="required">*</span></label>
+                <select id="pass_type" name="pass_type" required>
+                    <option value="SINGLE" {% if form_data and form_data.pass_type == 'SINGLE' %}selected{% endif %}>SINGLE (₹499)</option>
+                    <option value="COUPLE" {% if form_data and form_data.pass_type == 'COUPLE' %}selected{% endif %}>COUPLE (₹999)</option>
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label for="name1">Name <span class="required">*</span></label>
+                <input type="text" id="name1" name="name1" required 
+                       value="{{ form_data.name1 if form_data else '' }}">
+            </div>
+            
+            <div class="form-group">
+                <label for="phone1">Phone (10 digits) <span class="required">*</span></label>
+                <input type="tel" id="phone1" name="phone1" required pattern="[0-9]{10}" 
+                       placeholder="Enter 10 digit phone number"
+                       value="{{ form_data.phone1 if form_data else '' }}">
+            </div>
+            
+            
+            
+            <div class="couple-fields" id="couple-fields">
+                <h3 style="margin-bottom: 20px; color: #667eea;">Couple - Second Person Details</h3>
+                
+                <div class="form-group">
+                    <label for="name2">Name 2 <span class="required">*</span></label>
+                    <input type="text" id="name2" name="name2"
+                           value="{{ form_data.name2 if form_data else '' }}">
+                </div>
+                
+                <div class="form-group">
+                    <label for="phone2">Phone 2 (10 digits) <span class="required">*</span></label>
+                    <input type="tel" id="phone2" name="phone2" pattern="[0-9]{10}" 
+                           placeholder="Enter 10 digit phone number"
+                           value="{{ form_data.phone2 if form_data else '' }}">
+                </div>
+            </div>
+            
+           <!-- HATANA hai ye pura block jo aapke code me tha -->
+{# 
+    <div class="form-group">
+        <label for="timing">Event Timing <span class="required">*</span></label>
+        <input type="text" id="timing_display" name="timing_display" readonly 
+               style="background:#f8f9fa; cursor:not-allowed; color:#555;">
+        <input type="hidden" id="timing" name="timing" required>
+    </div>
+    #}
+    
+    <!-- Naya Hidden Input -->
+    <input type="hidden" id="timing" name="timing" required>
+    
+            <div class="form-group">
+                <label for="payment_mode">Payment Mode <span class="required">*</span></label>
+                <select id="payment_mode" name="payment_mode" required>
+                    <option value="CASH" {% if form_data and form_data.payment_mode == 'CASH' %}selected{% endif %}>CASH</option>
+                    <option value="ONLINE" {% if form_data and form_data.payment_mode == 'ONLINE' %}selected{% endif %}>ONLINE</option>
+                </select>
+            </div>
+            
+            <div class="online-fields" id="online-fields">
+                <div class="form-group">
+                    <label for="txn_info">Transaction Info (Optional)</label>
+                    <input type="text" id="txn_info" name="txn_info" 
+                           placeholder="UPI ID, Transaction ID, etc."
+                           value="{{ form_data.txn_info if form_data else '' }}">
+                </div>
+            </div>
+            
+            <div style="display: flex; gap: 15px; margin-top: 30px;">
+                <button type="submit" class="btn btn-success" style="flex: 1;">Generate Pass</button>
+                <a href="{{ url_for('dashboard') }}" class="btn btn-secondary">Cancel</a>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    const passTypeSelect = document.getElementById('pass_type');
+    const coupleFields = document.getElementById('couple-fields');
+    const name2Input = document.getElementById('name2');
+    const phone2Input = document.getElementById('phone2');
+    const priceAmount = document.getElementById('price-amount');
+    const priceType = document.getElementById('price-type');
+    const paymentModeSelect = document.getElementById('payment_mode');
+    const onlineFields = document.getElementById('online-fields');
+    
+    function updatePassType() {
+        const passType = passTypeSelect.value;
+        
+        if (passType === 'COUPLE') {
+            coupleFields.classList.add('active');
+            name2Input.required = true;
+            phone2Input.required = true;
+            priceAmount.textContent = '₹999';
+            priceType.textContent = 'COUPLE';
+        } else {
+            coupleFields.classList.remove('active');
+            name2Input.required = false;
+            phone2Input.required = false;
+            priceAmount.textContent = '₹499';
+            priceType.textContent = 'SINGLE';
+        }
+    }
+    
+    function updatePaymentMode() {
+        const paymentMode = paymentModeSelect.value;
+        
+        if (paymentMode === 'ONLINE') {
+            onlineFields.classList.add('active');
+        } else {
+            onlineFields.classList.remove('active');
+        }
+    }
+    
+    passTypeSelect.addEventListener('change', updatePassType);
+    paymentModeSelect.addEventListener('change', updatePaymentMode);
+    
+    // Initialize on page load
+    updatePassType();
+    updatePaymentMode();
+    
+    // Form validation
+    document.getElementById('pass-form').addEventListener('submit', function(e) {
+        const phone1 = document.getElementById('phone1').value;
+        const phone2 = document.getElementById('phone2').value;
+        
+        if (!/^[0-9]{10}$/.test(phone1)) {
+            e.preventDefault();
+            alert('Phone 1 must be exactly 10 digits');
+            return false;
+        }
+        
+        if (passTypeSelect.value === 'COUPLE' && phone2 && !/^[0-9]{10}$/.test(phone2)) {
+            e.preventDefault();
+            alert('Phone 2 must be exactly 10 digits');
+            return false;
+        }
+    });
+
+// Auto-fill current date and time in hidden timing field
+function setCurrentDateTime() {
+    const now = new Date();
+    const options = { 
+        weekday: 'short', year: 'numeric', month: 'short', 
+        day: 'numeric', hour: '2-digit', minute: '2-digit' 
+    };
+    const formatted = now.toLocaleString('en-IN', options); 
+
+    document.getElementById('timing').value = formatted;
+}
+
+// Run on page load
+setCurrentDateTime();
+
+</script>
+{% endblock %}

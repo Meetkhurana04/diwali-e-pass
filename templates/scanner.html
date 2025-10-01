@@ -1,0 +1,391 @@
+{% extends "base.html" %}
+
+{% block title %}QR Scanner - Diwali E-Pass System{% endblock %}
+
+{% block styles %}
+<style>
+    #scanner-container {
+        max-width: 600px;
+        margin: 0 auto;
+    }
+    
+    #video {
+        width: 100%;
+        border-radius: 12px;
+        background: #000;
+    }
+    
+    .scanner-status {
+        text-align: center;
+        padding: 15px;
+        border-radius: 8px;
+        margin: 20px 0;
+        font-weight: 500;
+    }
+    
+    .status-ready {
+        background: #d4edda;
+        color: #155724;
+    }
+    
+    .status-scanning {
+        background: #fff3cd;
+        color: #856404;
+    }
+    
+    .modal {
+        display: none;
+        position: fixed;
+        z-index: 1000;
+        left: 0;
+        top: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0,0,0,0.7);
+        animation: fadeIn 0.3s;
+    }
+    
+    @keyframes fadeIn {
+        from { opacity: 0; }
+        to { opacity: 1; }
+    }
+    
+    .modal-content {
+        background: white;
+        margin: 10% auto;
+        padding: 40px;
+        border-radius: 16px;
+        max-width: 500px;
+        text-align: center;
+        animation: slideIn 0.3s;
+        box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+    }
+    
+    @keyframes slideIn {
+        from {
+            transform: translateY(-50px);
+            opacity: 0;
+        }
+        to {
+            transform: translateY(0);
+            opacity: 1;
+        }
+    }
+    
+    .modal-icon {
+        font-size: 64px;
+        margin-bottom: 20px;
+    }
+    
+    .modal-title {
+        font-size: 28px;
+        font-weight: bold;
+        margin-bottom: 20px;
+        color: #333;
+    }
+    
+    .modal-message {
+        font-size: 18px;
+        color: #666;
+        margin-bottom: 30px;
+    }
+    
+    .pass-info {
+        background: #f8f9fa;
+        padding: 20px;
+        border-radius: 8px;
+        margin: 20px 0;
+        text-align: left;
+    }
+    
+    .pass-info-row {
+        display: flex;
+        justify-content: space-between;
+        padding: 10px 0;
+        border-bottom: 1px solid #e0e0e0;
+    }
+    
+    .pass-info-row:last-child {
+        border-bottom: none;
+    }
+    
+    .pass-info-label {
+        font-weight: bold;
+        color: #666;
+    }
+    
+    .pass-info-value {
+        color: #333;
+    }
+    
+    .modal-success {
+        border-top: 4px solid #28a745;
+    }
+    
+    .modal-error {
+        border-top: 4px solid #dc3545;
+    }
+    
+    .modal-warning {
+        border-top: 4px solid #ffc107;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="header">
+        <h1>📷 QR Code Scanner</h1>
+        <div class="user-info">
+            <span class="username">{{ username }}</span>
+            <a href="{{ url_for('dashboard') }}" class="btn btn-secondary">← Back to Dashboard</a>
+        </div>
+    </div>
+    
+    <div id="scanner-container">
+        <div class="card">
+            <div class="scanner-status status-ready" id="scanner-status">
+                Ready to scan QR codes
+            </div>
+            
+            <video id="video" playsinline></video>
+            
+            <div style="margin-top: 20px; text-align: center; color: #666;">
+                <p>📱 Point camera at QR code on pass</p>
+                <p style="font-size: 14px;">Scanner will automatically detect and process QR codes</p>
+            </div>
+        </div>
+        
+        <div class="card" style="margin-top: 20px;">
+            <h3 style="margin-bottom: 15px;">📊 Scan Statistics</h3>
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+                <div style="padding: 15px; background: #d4edda; border-radius: 8px; text-align: center;">
+                    <div style="font-size: 32px; font-weight: bold; color: #28a745;" id="success-count">0</div>
+                    <div style="color: #155724;">Successful</div>
+                </div>
+                <div style="padding: 15px; background: #f8d7da; border-radius: 8px; text-align: center;">
+                    <div style="font-size: 32px; font-weight: bold; color: #dc3545;" id="error-count">0</div>
+                    <div style="color: #721c24;">Failed/Used</div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal -->
+<div id="result-modal" class="modal">
+    <div class="modal-content" id="modal-content">
+        <div class="modal-icon" id="modal-icon">✅</div>
+        <div class="modal-title" id="modal-title">Success!</div>
+        <div class="modal-message" id="modal-message"></div>
+        <div class="pass-info" id="pass-info"></div>
+        <button class="btn" onclick="closeModal()" style="width: 100%;">Continue Scanning</button>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="https://unpkg.com/jsqr@1.4.0/dist/jsQR.js"></script>
+<script>
+    const video = document.getElementById('video');
+    const canvasElement = document.createElement('canvas');
+    const canvas = canvasElement.getContext('2d');
+    const modal = document.getElementById('result-modal');
+    const modalContent = document.getElementById('modal-content');
+    const modalIcon = document.getElementById('modal-icon');
+    const modalTitle = document.getElementById('modal-title');
+    const modalMessage = document.getElementById('modal-message');
+    const passInfo = document.getElementById('pass-info');
+    const scannerStatus = document.getElementById('scanner-status');
+    const successCount = document.getElementById('success-count');
+    const errorCount = document.getElementById('error-count');
+    
+    let successScans = 0;
+    let errorScans = 0;
+    let isScanning = false;
+    let lastScannedCode = '';
+    let lastScanTime = 0;
+    
+    // Start camera
+    navigator.mediaDevices.getUserMedia({ 
+        video: { facingMode: 'environment' } 
+    }).then(function(stream) {
+        video.srcObject = stream;
+        video.setAttribute('playsinline', true);
+        video.play();
+        requestAnimationFrame(tick);
+    }).catch(function(err) {
+        console.error('Camera error:', err);
+        scannerStatus.className = 'scanner-status status-scanning';
+        scannerStatus.textContent = 'Error: Unable to access camera';
+    });
+    
+    function tick() {
+        if (video.readyState === video.HAVE_ENOUGH_DATA) {
+            canvasElement.height = video.videoHeight;
+            canvasElement.width = video.videoWidth;
+            canvas.drawImage(video, 0, 0, canvasElement.width, canvasElement.height);
+            
+            const imageData = canvas.getImageData(0, 0, canvasElement.width, canvasElement.height);
+            const code = jsQR(imageData.data, imageData.width, imageData.height, {
+                inversionAttempts: 'dontInvert',
+            });
+            
+            if (code && !isScanning) {
+                const now = Date.now();
+                // Prevent duplicate scans within 2 seconds
+                if (code.data !== lastScannedCode || now - lastScanTime > 2000) {
+                    lastScannedCode = code.data;
+                    lastScanTime = now;
+                    processQRCode(code.data);
+                }
+            }
+        }
+        requestAnimationFrame(tick);
+    }
+    
+    async function processQRCode(payload) {
+        if (isScanning) return;
+        
+        isScanning = true;
+        scannerStatus.className = 'scanner-status status-scanning';
+        scannerStatus.textContent = 'Processing...';
+        
+        try {
+            const response = await fetch('/api/scan', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ payload: payload })
+            });
+            
+            const data = await response.json();
+            
+            if (response.ok && data.status === 'success') {
+                showSuccessModal(data);
+                successScans++;
+                successCount.textContent = successScans;
+            } else {
+                showErrorModal(data);
+                errorScans++;
+                errorCount.textContent = errorScans;
+            }
+        } catch (error) {
+            console.error('Scan error:', error);
+            showErrorModal({
+                status: 'error',
+                message: 'Network error. Please try again.'
+            });
+            errorScans++;
+            errorCount.textContent = errorScans;
+        } finally {
+            scannerStatus.className = 'scanner-status status-ready';
+            scannerStatus.textContent = 'Ready to scan QR codes';
+        }
+    }
+    
+    function showSuccessModal(data) {
+        modalContent.className = 'modal-content modal-success';
+        modalIcon.textContent = '✅';
+        modalTitle.textContent = 'Entry Approved!';
+        modalMessage.textContent = data.message;
+        
+        const info = data.pass_info;
+        let passInfoHTML = `
+            <div class="pass-info-row">
+                <span class="pass-info-label">Name:</span>
+                <span class="pass-info-value">${info.name1}</span>
+            </div>
+            <div class="pass-info-row">
+                <span class="pass-info-label">Phone:</span>
+                <span class="pass-info-value">${info.phone1}</span>
+            </div>
+        `;
+        
+        if (info.name2 && info.phone2) {
+            passInfoHTML += `
+                <div class="pass-info-row">
+                    <span class="pass-info-label">Partner:</span>
+                    <span class="pass-info-value">${info.name2}</span>
+                </div>
+                <div class="pass-info-row">
+                    <span class="pass-info-label">Partner Phone:</span>
+                    <span class="pass-info-value">${info.phone2}</span>
+                </div>
+            `;
+        }
+        
+        passInfoHTML += `
+            <div class="pass-info-row">
+                <span class="pass-info-label">Pass Type:</span>
+                <span class="pass-info-value">${info.pass_type}</span>
+            </div>
+            <div class="pass-info-row">
+                <span class="pass-info-label">Timing:</span>
+                <span class="pass-info-value">${info.timing}</span>
+            </div>
+        `;
+        
+        passInfo.innerHTML = passInfoHTML;
+        passInfo.style.display = 'block';
+        modal.style.display = 'block';
+    }
+    
+    function showErrorModal(data) {
+        modalContent.className = 'modal-content modal-error';
+        modalIcon.textContent = '❌';
+        
+        if (data.status === 'already_scanned') {
+            modalContent.className = 'modal-content modal-warning';
+            modalIcon.textContent = '⚠️';
+            modalTitle.textContent = 'Already Used!';
+            modalMessage.textContent = data.message;
+            
+            if (data.pass_info) {
+                const info = data.pass_info;
+                let passInfoHTML = `
+                    <div class="pass-info-row">
+                        <span class="pass-info-label">Name:</span>
+                        <span class="pass-info-value">${info.name1}</span>
+                    </div>
+                    <div class="pass-info-row">
+                        <span class="pass-info-label">Phone:</span>
+                        <span class="pass-info-value">${info.phone1}</span>
+                    </div>
+                    <div class="pass-info-row">
+                        <span class="pass-info-label">Scanned At:</span>
+                        <span class="pass-info-value">${data.scanned_at}</span>
+                    </div>
+                    <div class="pass-info-row">
+                        <span class="pass-info-label">Scanned By:</span>
+                        <span class="pass-info-value">${data.scanned_by}</span>
+                    </div>
+                `;
+                passInfo.innerHTML = passInfoHTML;
+                passInfo.style.display = 'block';
+            } else {
+                passInfo.style.display = 'none';
+            }
+        } else {
+            modalTitle.textContent = 'Invalid Pass!';
+            modalMessage.textContent = data.message || 'This QR code is invalid or has been tampered with.';
+            passInfo.style.display = 'none';
+        }
+        
+        modal.style.display = 'block';
+    }
+    
+    function closeModal() {
+        modal.style.display = 'none';
+        isScanning = false;
+    }
+    
+    // Close modal when clicking outside
+    window.onclick = function(event) {
+        if (event.target == modal) {
+            closeModal();
+        }
+    }
+</script>
+{% endblock %}
