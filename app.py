@@ -53,7 +53,7 @@ def init_db():
     conn = get_db()
     cursor = conn.cursor()
     
-    is_postgres = DATABASE_URL.startswith('postgresql')
+    pg = is_postgres()
     
     # Create admins table
     cursor.execute('''
@@ -97,15 +97,16 @@ def init_db():
         ('admin5', 'Admin Five')
     ]
     
+    param = sql_param()
     for username, display_name in admin_users:
-        if is_postgres:
+        if pg:
             cursor.execute(
-                'INSERT INTO admins (username, password_hash, display_name) VALUES (%s, %s, %s) ON CONFLICT (username) DO NOTHING',
+                f'INSERT INTO admins (username, password_hash, display_name) VALUES ({param}, {param}, {param}) ON CONFLICT (username) DO NOTHING',
                 (username, password_hash, display_name)
             )
         else:
             cursor.execute(
-                'INSERT OR IGNORE INTO admins (username, password_hash, display_name) VALUES (?, ?, ?)',
+                f'INSERT OR IGNORE INTO admins (username, password_hash, display_name) VALUES ({param}, {param}, {param})',
                 (username, password_hash, display_name)
             )
     
@@ -187,7 +188,8 @@ def login():
         
         conn = get_db()
         cursor = conn.cursor()
-        cursor.execute('SELECT password_hash FROM admins WHERE username = ?', (username,))
+        param = sql_param()
+        cursor.execute(f'SELECT password_hash FROM admins WHERE username = {param}', (username,))
         admin = cursor.fetchone()
         conn.close()
         
@@ -217,17 +219,18 @@ def dashboard():
     total_passes = cursor.fetchone()['count']
     
     # Single vs Couple
-    cursor.execute('SELECT COUNT(*) as count FROM passes WHERE pass_type = "SINGLE"')
+    param = sql_param()
+    cursor.execute(f"SELECT COUNT(*) as count FROM passes WHERE pass_type = {param}", ('SINGLE',))
     single_count = cursor.fetchone()['count']
     
-    cursor.execute('SELECT COUNT(*) as count FROM passes WHERE pass_type = "COUPLE"')
+    cursor.execute(f"SELECT COUNT(*) as count FROM passes WHERE pass_type = {param}", ('COUPLE',))
     couple_count = cursor.fetchone()['count']
     
     # Payment breakdown
-    cursor.execute('SELECT COALESCE(SUM(amount), 0) as total FROM passes WHERE payment_mode = "CASH"')
+    cursor.execute(f"SELECT COALESCE(SUM(amount), 0) as total FROM passes WHERE payment_mode = {param}", ('CASH',))
     cash_total = cursor.fetchone()['total']
     
-    cursor.execute('SELECT COALESCE(SUM(amount), 0) as total FROM passes WHERE payment_mode = "ONLINE"')
+    cursor.execute(f"SELECT COALESCE(SUM(amount), 0) as total FROM passes WHERE payment_mode = {param}", ('ONLINE',))
     online_total = cursor.fetchone()['total']
     
     # Total revenue
@@ -299,16 +302,17 @@ def generate():
         try:
             conn = get_db()
             cursor = conn.cursor()
-            cursor.execute('''
+            param = sql_param()
+            cursor.execute(f'''
                 INSERT INTO passes (pass_id, name1, phone1, name2, phone2, pass_type, amount, payment_mode, txn_info, timing)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                VALUES ({param}, {param}, {param}, {param}, {param}, {param}, {param}, {param}, {param}, {param})
             ''', (pass_id, name1, phone1, name2, phone2, pass_type, amount, payment_mode, txn_info, timing))
             conn.commit()
             conn.close()
             
             return redirect(url_for('preview', pass_id=pass_id))
             
-        except sqlite3.IntegrityError:
+        except Exception as e:
             errors.append(f'A pass already exists for {name1} with phone {phone1}')
             return render_template('generate.html', errors=errors, form_data=request.form)
     
@@ -320,7 +324,8 @@ def preview(pass_id):
     """Preview generated pass"""
     conn = get_db()
     cursor = conn.cursor()
-    cursor.execute('SELECT * FROM passes WHERE pass_id = ?', (pass_id,))
+    param = sql_param()
+    cursor.execute(f'SELECT * FROM passes WHERE pass_id = {param}', (pass_id,))
     pass_data = cursor.fetchone()
     conn.close()
     
@@ -367,7 +372,8 @@ def api_scan():
     cursor = conn.cursor()
     
     # First check if pass exists
-    cursor.execute('SELECT * FROM passes WHERE pass_id = ?', (pass_id,))
+    param = sql_param()
+    cursor.execute(f'SELECT * FROM passes WHERE pass_id = {param}', (pass_id,))
     pass_data = cursor.fetchone()
     
     if not pass_data:
@@ -393,29 +399,29 @@ def api_scan():
         }), 400
     
     # Atomic update - only update if not scanned
-    cursor.execute('''
+    param = sql_param()
+    cursor.execute(f'''
         UPDATE passes 
-        SET scanned_at = CURRENT_TIMESTAMP, scanned_by = ? 
-        WHERE pass_id = ? AND scanned_at IS NULL
+        SET scanned_at = CURRENT_TIMESTAMP, scanned_by = {param} 
+        WHERE pass_id = {param} AND scanned_at IS NULL
     ''', (session.get('username'), pass_id))
-    
     rows_affected = cursor.rowcount
     conn.commit()
     
     if rows_affected == 0:
         # Race condition - already scanned
-        cursor.execute('SELECT * FROM passes WHERE pass_id = ?', (pass_id,))
+        cursor.execute(f'SELECT * FROM passes WHERE pass_id = {param}', (pass_id,))
         pass_data = cursor.fetchone()
         conn.close()
         return jsonify({
             'status': 'already_scanned',
             'message': 'This pass has already been used',
-            'scanned_at': pass_data['scanned_at'],
             'scanned_by': pass_data['scanned_by']
         }), 400
     
     # Get updated pass data
-    cursor.execute('SELECT * FROM passes WHERE pass_id = ?', (pass_id,))
+    param = sql_param()
+    cursor.execute(f'SELECT * FROM passes WHERE pass_id = {param}', (pass_id,))
     pass_data = cursor.fetchone()
     conn.close()
     
@@ -445,12 +451,14 @@ def database():
     per_page = 20
     offset = (page - 1) * per_page
     
+    param = sql_param()
+    
     # Build query
     query = 'SELECT * FROM passes WHERE 1=1'
     params = []
     
     if search:
-        query += ' AND (name1 LIKE ? OR phone1 LIKE ? OR name2 LIKE ? OR phone2 LIKE ?)'
+        query += f' AND (name1 LIKE {param} OR phone1 LIKE {param} OR name2 LIKE {param} OR phone2 LIKE {param})'
         search_param = f'%{search}%'
         params.extend([search_param, search_param, search_param, search_param])
     
@@ -460,7 +468,7 @@ def database():
         query += ' AND scanned_at IS NULL'
     
     if filter_type in ['SINGLE', 'COUPLE']:
-        query += ' AND pass_type = ?'
+        query += f' AND pass_type = {param}'
         params.append(filter_type)
     
     # Get total count
@@ -468,10 +476,10 @@ def database():
     conn = get_db()
     cursor = conn.cursor()
     cursor.execute(count_query, params)
-    total_count = cursor.fetchone()[0]
+    total_count = cursor.fetchone()[0] if is_postgres() else cursor.fetchone()['count']
     
     # Get paginated results
-    query += ' ORDER BY created_at DESC LIMIT ? OFFSET ?'
+    query += f' ORDER BY created_at DESC LIMIT {param} OFFSET {param}'
     params.extend([per_page, offset])
     cursor.execute(query, params)
     passes = cursor.fetchall()
