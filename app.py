@@ -542,6 +542,8 @@ def export_csv():
         download_name=f'epass_database_{datetime.now().strftime("%Y%m%d_%H%M%S")}.csv'
     )
 
-if __name__ == '__main__':
+with app.app_context():
     init_db()
+
+if __name__ == '__main__':
     app.run(debug=True, host='0.0.0.0', port=5000)
