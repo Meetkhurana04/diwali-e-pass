@@ -472,11 +472,11 @@ def database():
         params.append(filter_type)
     
     # Get total count
-    count_query = query.replace('SELECT *', 'SELECT COUNT(*)')
+    count_query = query.replace('SELECT *', 'SELECT COUNT(*) AS count')
     conn = get_db()
     cursor = conn.cursor()
     cursor.execute(count_query, params)
-    total_count = cursor.fetchone()[0] if is_postgres() else cursor.fetchone()['count']
+    total_count = cursor.fetchone()['count']  # Use dictionary-style access for both SQLite and PostgreSQL
     
     # Get paginated results
     query += f' ORDER BY created_at DESC LIMIT {param} OFFSET {param}'
