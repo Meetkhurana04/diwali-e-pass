@@ -542,6 +542,26 @@ def export_csv():
         download_name=f'epass_database_{datetime.now().strftime("%Y%m%d_%H%M%S")}.csv'
     )
 
+@app.route('/health')
+def health():
+    """Health check endpoint"""
+    status = {
+        "timestamp": datetime.utcnow().isoformat(),
+        "status": "ok",
+        "database": None
+    }
+    try:
+        conn = get_db()
+        cursor = conn.cursor()
+        cursor.execute("SELECT 1")
+        conn.close()
+        status["database"] = "healthy"
+    except Exception as e:
+        status["database"] = f"error: {str(e)}"
+
+    return jsonify(status)
+
+
 with app.app_context():
     init_db()
 
