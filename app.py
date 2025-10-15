@@ -561,9 +561,15 @@ def health():
 
     return jsonify(status)
 
+@app.before_request
+def maintenance_lock():
+    if request.path in ('/health', '/static/favicon.ico'):
+        return None  # allow health check
+    abort(503)
 
 with app.app_context():
     init_db()
+
 
 if __name__ == '__main__':
     app.run(debug=True, host='0.0.0.0', port=5000)
