@@ -561,11 +561,6 @@ def health():
 
     return jsonify(status)
 
-@app.before_request
-def maintenance_lock():
-    if request.path in ('/health', '/static/favicon.ico'):
-        return None  # allow health check
-    abort(503)
 
 with app.app_context():
     init_db()
